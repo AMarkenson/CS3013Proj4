@@ -5,7 +5,9 @@ using namespace std;
 #include <sstream>
 
 
+
 #define MAX_FRAMES 20
+#define MIN_FRAMES 3
 
 int fifo(int pageRefs[], int numPageRefs, int frames, bool trace) {
     int pageFaults = 0;
@@ -271,6 +273,49 @@ int lfu(int pageRefs[], int numPageRefs, int frames, bool trace) {
 }
 
 
+void writeAll(char* inputName, int pageRefs[], int numPageRefs, int frames, bool trace) {
+    int results[frames - MIN_FRAMES + 1][6]; // Store results for each frame count and policy
+    for (int f = MIN_FRAMES; f <= frames; f++) {
+        results[f - MIN_FRAMES][0] = f;
+        results[f - MIN_FRAMES][1] = fifo(pageRefs, numPageRefs, f, trace);
+        results[f - MIN_FRAMES][2] = lru(pageRefs, numPageRefs, f, trace);
+        results[f - MIN_FRAMES][3] = optimal(pageRefs, numPageRefs, f, trace);
+        results[f - MIN_FRAMES][4] = clock(pageRefs, numPageRefs, f, trace);
+        results[f - MIN_FRAMES][5] = lfu(pageRefs, numPageRefs, f, trace);
+    }
+    // Write results to csv file
+    // Remove ".txt" from inputName
+    char outName[sizeof(inputName) / sizeof(inputName[0])];
+    for (size_t i = 0; i < sizeof(inputName) / sizeof(inputName[0]); i++) {
+        outName[i] = inputName[i];
+        if (inputName[i] == '.') {
+            outName[i] = '\0';
+            break;
+        }
+    }
+    cout << "Output file name: " << outName << endl;
+    string fileName = "./results/";
+    fileName += outName;
+    fileName += ".csv";
+    //cout << "Writing results to " << fileName << endl;
+    //return;
+    int fdOut = open(fileName.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fdOut < 0) {
+        cerr << "Error: Unable to open csv file for writing." << endl;
+        return;
+    }
+    string header = "frames,lru,fifo,min,clock,lfu\n";
+    write(fdOut, header.c_str(), header.size());
+    for (int i = 0; i < frames - MIN_FRAMES + 1; i++) {
+        string line = to_string(results[i][0]) + "," + to_string(results[i][1]) + "," + to_string(results[i][2]) +
+        "," + to_string(results[i][3]) + "," + to_string(results[i][4]) + "," + to_string(results[i][5]) + "\n";
+        write(fdOut, line.c_str(), line.size());
+    }
+    close(fdOut);
+    cout << "Results written to " << fileName << endl;
+    return;
+}
+
 
 
 int main(int argc, char* argv[]) {
@@ -294,8 +339,8 @@ int main(int argc, char* argv[]) {
     }
 
     int frames = stoi(argv[2]);
-    if (frames < 3) {
-        cerr << "Error: Number of frames must be at least 3." << endl;
+    if (frames < MIN_FRAMES) {
+        cerr << "Error: Number of frames must be at least " << MIN_FRAMES << "." << endl;
         return 1;
     } else {
         frames = min(frames, MAX_FRAMES);
@@ -339,6 +384,11 @@ int main(int argc, char* argv[]) {
     cout << endl;
     /**/
     // Implement the page replacement algorithm here
+    if (policy == "all") {
+        writeAll(argv[3], pageRefs, numPageRefs, frames, trace);
+        return 0;
+    }
+
     if (policy == "fifo") {
         pageFaults = fifo(pageRefs, numPageRefs, frames, trace);
     } else if (policy == "lru") {
